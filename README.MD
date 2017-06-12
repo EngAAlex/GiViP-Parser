@@ -1,0 +1,1 @@
+GiViP Parser to transfer data from a HDFS folder to SQL.
