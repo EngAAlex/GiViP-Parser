@@ -22,10 +22,10 @@ import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 
+import com.unipg.givip.common.protoutils.ExecutedSuperstepWorkerInfoProto;
+import com.unipg.givip.common.protoutils.ExecutedSuperstepWorkerInfoProto.ExecSuperstepWorkerInfo;
+import com.unipg.givip.common.protoutils.ExecutedSuperstepWorkerInfoProto.ExecSuperstepWorkerInfo.SuperstepInfo;
 import com.unipg.hdfs2sql.db.ConnectionFactory;
-import com.unipg.profilercommon.protoutils.ExecutedSuperstepWorkerInfoProto;
-import com.unipg.profilercommon.protoutils.ExecutedSuperstepWorkerInfoProto.ExecSuperstepWorkerInfo;
-import com.unipg.profilercommon.protoutils.ExecutedSuperstepWorkerInfoProto.ExecSuperstepWorkerInfo.SuperstepInfo;
 
 /**
  * @author maria

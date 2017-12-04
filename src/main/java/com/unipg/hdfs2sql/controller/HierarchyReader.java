@@ -16,9 +16,9 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
+import com.unipg.givip.common.protoutils.HierarchyProtoBook.SingleWorkerTreeHierarchy;
+import com.unipg.givip.common.protoutils.HierarchyProtoBook.WorkerHierarchy;
 import com.unipg.hdfs2sql.db.ConnectionFactory;
-import com.unipg.profilercommon.protoutils.HierarchyProtoBook.SingleWorkerTreeHierarchy;
-import com.unipg.profilercommon.protoutils.HierarchyProtoBook.WorkerHierarchy;
 
 /**
  * @author maria

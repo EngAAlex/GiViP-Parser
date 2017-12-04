@@ -15,11 +15,11 @@ import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 
+import com.unipg.givip.common.protoutils.HierarchyProtoBook.SingleWorkerTreeHierarchy;
+import com.unipg.givip.common.protoutils.HierarchyProtoBook.WorkerHierarchy;
+import com.unipg.givip.common.protoutils.SuperstepProtoInfo.SuperstepsInfo;
 import com.unipg.hdfs2sql.db.ConnectionFactory;
 import com.unipg.hdfs2sql.utils.JobInfo;
-import com.unipg.profilercommon.protoutils.HierarchyProtoBook.SingleWorkerTreeHierarchy;
-import com.unipg.profilercommon.protoutils.HierarchyProtoBook.WorkerHierarchy;
-import com.unipg.profilercommon.protoutils.SuperstepProtoInfo.SuperstepsInfo;
 
 /**
  * 
@@ -69,6 +69,7 @@ public class DataExtractor {
 		createSuperstepsInfoTable();
 		createHierarchyTable();
 		createSuperstepPerScaleInfoTable();
+		createLatenciesTable();
 	}
 
 	public void getData(Reader r, String jobID, FileSystem fileSystem){
@@ -231,6 +232,36 @@ public class DataExtractor {
 		//        e.printStackTrace();
 		//      }
 	}
+	
+	private void createLatenciesTable() throws SQLException{
+		String latenciesTableCreationQuery = 
+				"CREATE TABLE IF NOT EXISTS latencies" +
+				"(id_superstep INTEGER not NULL, " +
+				" source VARCHAR(255), " + 
+				" target VARCHAR(255), " + 
+				" latency BIGINT,"
+				+ "PRIMARY KEY (id_superstep, source, target)";
+		
+		PreparedStatement ps = null;
+		try{
+			ps = ConnectionFactory.prepare(latenciesTableCreationQuery);
+			ps.executeUpdate();
+			
+			ps.close();
+			
+		}catch(SQLException se){
+			//			ConnectionFactory.closeStatement(ps);							
+			throw new SQLException(se);
+		}finally{
+			ConnectionFactory.closeStatement(ps);
+		}		//      try {
+		//        dao.execute(jobId, messagesTable);
+		//      } catch (Exception e) {
+		//        // TODO Auto-generated catch block
+		//        e.printStackTrace();
+		//      }
+	}
+
 
 	public void createSuperstepPerScaleInfoTable() throws SQLException{
 

@@ -18,11 +18,13 @@ import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 
+import com.unipg.givip.common.protoutils.LatenciesProtoBook.LatenciesBook;
+import com.unipg.givip.common.protoutils.LatenciesProtoBook.RecordedLatency;
+import com.unipg.givip.common.protoutils.MessagesProtoBook.ExchangedMessage;
+import com.unipg.givip.common.protoutils.MessagesProtoBook.MessagesBook;
 import com.unipg.hdfs2sql.db.ConnectionFactory;
 import com.unipg.hdfs2sql.utils.JobInfo;
 import com.unipg.hdfs2sql.utils.WorkerIndexMapper;
-import com.unipg.profilercommon.protoutils.MessagesProtoBook.ExchangedMessage;
-import com.unipg.profilercommon.protoutils.MessagesProtoBook.MessagesBook;
 
 /**
  * @author maria
@@ -30,24 +32,32 @@ import com.unipg.profilercommon.protoutils.MessagesProtoBook.MessagesBook;
  */
 public class WorkerDataReader/* implements Reader */{
 
-	public static final String workerFolderPrefix = "WorkerData"+File.separator+"WorkerN-";
+	public static final String workerFolderPrefix = "WorkerData";
+
+	/*MESSAGES ORIENTED VARIABLES*/
+
+	public static final String workerMessagesFolderName = "MessagesData";
+	public static final String workerMessagesFolderPrefix = workerFolderPrefix+File.separator+workerMessagesFolderName+File.separator+"WorkerN-";
 	public static final String superstepMessagesFilePrefix = "ExchangedMessagesSuperstepN-";
 
-//	public static final String sqlMsgsInsertIntoTempQuery = "INSERT INTO temp_messages_by_%TABLE VALUES(?,?,?,?,?)";
 	public static final String sqlMsgsInsertIntoTempQuery = "INSERT INTO messages_by_%TABLE VALUES(?,?,?,?,?)";
-
 	public static final String sqlMsgsInsertQuery = "INSERT INTO messages_by_%TABLE VALUES(?,?,?,?,?)";
-
 	public static final String dropTempTableQuery = "DROP TABLE IF EXISTS temp_messages_by_%TABLE";
 
-	/*	public static final String sqlMsgsUpdateQuery = "UPDATE messages_by_%TABLE SET nMessages = ?, bytes = ? WHERE superstepId = ? AND source = ? AND target = ?";
-	 */
 	public static final String getAggregatedDataQuery = "SELECT SUM(nMessages), SUM(bytes) FROM temp_messages_by_%TABLE WHERE superstepId = ? AND source = ? AND target = ?";
-
 	public static final String presenceCheckerQuery = "SELECT nMessages, bytes FROM messages_by_%TABLE WHERE superstepId = ? AND source = ? AND target = ?";
 
 	HashMap<String, String> hostToRackMap;
 	HashMap<Integer, String> workerToHostMap;
+
+	/*LATENCIES ORIENTED VARIABLES*/
+
+	public static final String latenciesFolderName = "LatenciesData";
+	public static final String latenciesFolderPrefix = workerFolderPrefix+File.separator+latenciesFolderName+File.separator+"WorkerN-";
+	public static final String superstepLatenciesFilePrefix = "LatenciessSuperstepN-";
+
+	public static final String sqlLatenciesInsertQuery = "INSERT INTO latencies VALUES(?,?,?,?)";
+
 
 	int fSuperstep;
 	HashMap<String, HashSet<String>> workingElements;
@@ -79,7 +89,9 @@ public class WorkerDataReader/* implements Reader */{
 		int workerIndex;
 		WorkerIndexMapper mapper = new WorkerIndexMapper();
 
-		RemoteIterator<LocatedFileStatus> it = fileSystem.listLocatedStatus(new Path(folder + File.separator + jobID + File.separator+"WorkerData"));
+		//Load messages first
+
+		RemoteIterator<LocatedFileStatus> it = fileSystem.listLocatedStatus(new Path(folder + File.separator + jobID + File.separator+ workerFolderPrefix + File.separator + latenciesFolderName));
 		while(it.hasNext()){
 			LocatedFileStatus current = it.next();
 			strings = current.getPath().getName().split("-");
@@ -93,45 +105,35 @@ public class WorkerDataReader/* implements Reader */{
 
 			int superstep = 0;
 
-			Path wPath = new Path(folder + jobID + File.separator+ workerFolderPrefix + workerIndex);
+			Path msgsFolderPath = new Path(folder + jobID + File.separator+ workerMessagesFolderPrefix + workerIndex);
+			Path latenciesFolderPath = new Path(folder + jobID + File.separator+ latenciesFolderPrefix + workerIndex);
 
 			while(superstep < allSupersteps){
 
-				Path pt = new Path(wPath + File.separator + superstepMessagesFilePrefix + superstep);
+				Path msgsPath = new Path(msgsFolderPath + File.separator + superstepMessagesFilePrefix + superstep);
+				Path latenciesPath = new Path(latenciesFolderPath + File.separator + superstepLatenciesFilePrefix + superstep);
 
-				if(!fileSystem.exists(pt)){
-					superstep++;
-					continue;
-				}
-
-				//			FileStatus current = fileSystem.getFileStatus(pt);
-
-				//			while(its.hasNext()){
-				System.out.println("Analyzing worker " + workerIndex + " at superstep " + superstep);
-
-				//				LocatedFileStatus current = its.next();
-
-				//			for (Map.Entry<Integer, Integer> entry : mapper.getpairWorkerIndex().entrySet()){
-
-
-				/*					String name = current.getPath().getName();
-				 *///					String[] split = name.split("-");
-				//				int superstep = Integer.parseInt(split[1]);
-				//					fSuperstep = Math.max(fSuperstep, superstep);
+				fSuperstep = Math.max(fSuperstep, superstep);
 
 				MessagesBook messagesBook = null;
-				InputStream input = null;
+				InputStream msgsInput = null;
+
+				LatenciesBook latenciesBook = null;
+				InputStream latenciesInput = null;
 				//					Path pt = new Path(folder + jobID + File.separator+ workerFolderPrefix + entry.getKey() + File.separator + current.getPath().getName());
 
-				input = new FSDataInputStream(fileSystem.open(pt).getWrappedStream());
-				messagesBook = MessagesBook.parseFrom(input);
+				msgsInput = new FSDataInputStream(fileSystem.open(msgsPath).getWrappedStream());
+				messagesBook = MessagesBook.parseFrom(msgsInput);
+
+				latenciesInput = new FSDataInputStream(fileSystem.open(latenciesPath).getWrappedStream());
+				latenciesBook = LatenciesBook.parseFrom(latenciesInput);
 
 				for (ExchangedMessage message : messagesBook.getExchangeMessageList()) { 
 
 					//					ResultSet rs = null;
 
 					for(String table : tables){					
-						
+
 						try{
 							String source = correctIndex(table, message.getWorkerSourceId());
 							String target = correctIndex(table, message.getWorkerDestId());
@@ -139,15 +141,6 @@ public class WorkerDataReader/* implements Reader */{
 							workingElements.get(table).add(target);
 							int msgsNumber = message.getMessagesNumber();
 							double bytesNumber = message.getMessagesByteSize();
-
-							//							ps = ConnectionFactory.prepare(presenceCheckerQuery.replace("%TABLE", table));
-							//							ps.setInt(1, superstep);
-							//							ps.setString(2, source);
-							//							ps.setString(3,  target);
-							//
-							//							rs = ps.executeQuery();
-							//
-							//							if(rs.getFetchSize() == 0){						
 
 							sp = ConnectionFactory.prepare(sqlMsgsInsertIntoTempQuery.replace("%TABLE", table));
 							sp.setInt(1, superstep);
@@ -157,39 +150,41 @@ public class WorkerDataReader/* implements Reader */{
 							sp.setDouble(5,  bytesNumber);
 
 							sp.executeUpdate();
-							//							}else{
-							//								int nMessages = 0;
-							//								long nBytes = 0;
-							//
-							//								rs.next();
-							//
-							//								nMessages = rs.getInt(0);
-							//								nBytes = rs.getLong(1);
-							//
-							//								rs.close();
-							//
-							//								sp = ConnectionFactory.prepare(sqlMsgsUpdateQuery.replace("%TABLE", table));
-							//								sp.setInt(3, superstep);
-							//								sp.setString(4, source);
-							//								sp.setString(5,  target);
-							//								sp.setInt(1, msgsNumber + nMessages); 
-							//								sp.setDouble(2, bytesNumber + nBytes);
-							//
-							//								sp.executeUpdate();							
-							//							}
-
-							//							ps.close();
 							sp.close();
-							//							rs.close();
+
 						}catch(SQLException se){
 							throw new SQLException(se);
 						}finally{
-							ConnectionFactory.closeStatement(ps);
+							ConnectionFactory.closeStatement(sp);
 						}
 					}
 				}
 
-				input.close();
+				for (RecordedLatency message : latenciesBook.getRecordedLatencyList()) { 
+
+					try{
+						String source = message.getPingSource();
+						String target = message.getPingTarget();
+						long ping = message.getLatencyMs();
+
+						ps = ConnectionFactory.prepare(sqlLatenciesInsertQuery);
+						ps.setInt(1, superstep);
+						ps.setString(2, source);
+						ps.setString(3,  target);
+						ps.setLong(4, ping);
+
+						ps.executeUpdate();
+						ps.close();
+
+					}catch(SQLException se){
+						throw new SQLException(se);
+					}finally{
+						ConnectionFactory.closeStatement(ps);
+					}
+				}
+
+				msgsInput.close();
+				latenciesInput.close();
 
 				superstep++;
 
@@ -212,7 +207,7 @@ public class WorkerDataReader/* implements Reader */{
 						try{
 							String source = elements[j];
 							String target = elements[t];
-							
+
 							st = ConnectionFactory.prepare(groupByQuery);
 							st.setInt(1, i);
 							st.setString(2, source);
