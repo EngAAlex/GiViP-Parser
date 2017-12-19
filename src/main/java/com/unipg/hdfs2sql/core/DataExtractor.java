@@ -46,8 +46,10 @@ public class DataExtractor {
 	private void setFileSystem(){
 		Configuration conf=new Configuration();
 
-		String hadoopConfFolder = System.getenv("HADOOP_CONF");
-
+//		String hadoopConfFolder = System.getenv("HADOOP_CONF");
+		String hadoopConfFolder = "/opt/hadoop/etc/hadoop";
+		System.out.println(hadoopConfFolder);
+		
 		conf.addResource(new Path(hadoopConfFolder + File.separator +"core-site.xml"));
 		conf.addResource(new Path(hadoopConfFolder + File.separator +"hdfs-site.xml"));
 		try {
@@ -240,7 +242,7 @@ public class DataExtractor {
 				" source VARCHAR(255), " + 
 				" target VARCHAR(255), " + 
 				" latency BIGINT,"
-				+ "PRIMARY KEY (id_superstep, source, target)";
+				+ "PRIMARY KEY (id_superstep, source, target));";
 		
 		PreparedStatement ps = null;
 		try{

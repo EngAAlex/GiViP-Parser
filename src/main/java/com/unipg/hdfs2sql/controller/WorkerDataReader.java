@@ -4,6 +4,7 @@
 package com.unipg.hdfs2sql.controller;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.PreparedStatement;
@@ -18,6 +19,7 @@ import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 
+import com.mysql.jdbc.exceptions.jdbc4.MySQLIntegrityConstraintViolationException;
 import com.unipg.givip.common.protoutils.LatenciesProtoBook.LatenciesBook;
 import com.unipg.givip.common.protoutils.LatenciesProtoBook.RecordedLatency;
 import com.unipg.givip.common.protoutils.MessagesProtoBook.ExchangedMessage;
@@ -54,7 +56,7 @@ public class WorkerDataReader/* implements Reader */{
 
 	public static final String latenciesFolderName = "LatenciesData";
 	public static final String latenciesFolderPrefix = workerFolderPrefix+File.separator+latenciesFolderName+File.separator+"WorkerN-";
-	public static final String superstepLatenciesFilePrefix = "LatenciessSuperstepN-";
+	public static final String superstepLatenciesFilePrefix = "LatenciesSuperstepN-";
 
 	public static final String sqlLatenciesInsertQuery = "INSERT INTO latencies VALUES(?,?,?,?)";
 
@@ -91,7 +93,7 @@ public class WorkerDataReader/* implements Reader */{
 
 		//Load messages first
 
-		RemoteIterator<LocatedFileStatus> it = fileSystem.listLocatedStatus(new Path(folder + File.separator + jobID + File.separator+ workerFolderPrefix + File.separator + latenciesFolderName));
+		RemoteIterator<LocatedFileStatus> it = fileSystem.listLocatedStatus(new Path(folder + File.separator + jobID + File.separator+ workerFolderPrefix + File.separator + workerMessagesFolderName));
 		while(it.hasNext()){
 			LocatedFileStatus current = it.next();
 			strings = current.getPath().getName().split("-");
@@ -122,69 +124,83 @@ public class WorkerDataReader/* implements Reader */{
 				InputStream latenciesInput = null;
 				//					Path pt = new Path(folder + jobID + File.separator+ workerFolderPrefix + entry.getKey() + File.separator + current.getPath().getName());
 
-				msgsInput = new FSDataInputStream(fileSystem.open(msgsPath).getWrappedStream());
-				messagesBook = MessagesBook.parseFrom(msgsInput);
+				try {
+					msgsInput = new FSDataInputStream(fileSystem.open(msgsPath).getWrappedStream());
+					messagesBook = MessagesBook.parseFrom(msgsInput);
 
-				latenciesInput = new FSDataInputStream(fileSystem.open(latenciesPath).getWrappedStream());
-				latenciesBook = LatenciesBook.parseFrom(latenciesInput);
+					for (ExchangedMessage message : messagesBook.getExchangeMessageList()) { 
 
-				for (ExchangedMessage message : messagesBook.getExchangeMessageList()) { 
+						//					ResultSet rs = null;
 
-					//					ResultSet rs = null;
+						for(String table : tables){					
 
-					for(String table : tables){					
+							try{
+								String source = correctIndex(table, message.getWorkerSourceId());
+								String target = correctIndex(table, message.getWorkerDestId());
+								workingElements.get(table).add(source);
+								workingElements.get(table).add(target);
+								int msgsNumber = message.getMessagesNumber();
+								double bytesNumber = message.getMessagesByteSize();
 
+								sp = ConnectionFactory.prepare(sqlMsgsInsertIntoTempQuery.replace("%TABLE", table));
+								sp.setInt(1, superstep);
+								sp.setString(2, source);
+								sp.setString(3,  target);
+								sp.setInt(4, msgsNumber);
+								sp.setDouble(5,  bytesNumber);
+
+								sp.executeUpdate();
+								sp.close();
+
+							}catch(SQLException se){
+								throw new SQLException(se);
+							}finally{
+								ConnectionFactory.closeStatement(sp);
+							}
+						}
+					}
+
+				}catch(FileNotFoundException fnfe) {
+//					System.out.println("File " + msgsPath + " not found");
+				}
+
+				try {
+
+					latenciesInput = new FSDataInputStream(fileSystem.open(latenciesPath).getWrappedStream());
+					latenciesBook = LatenciesBook.parseFrom(latenciesInput);
+
+					for (RecordedLatency message : latenciesBook.getRecordedLatencyList()) { 
+						
 						try{
-							String source = correctIndex(table, message.getWorkerSourceId());
-							String target = correctIndex(table, message.getWorkerDestId());
-							workingElements.get(table).add(source);
-							workingElements.get(table).add(target);
-							int msgsNumber = message.getMessagesNumber();
-							double bytesNumber = message.getMessagesByteSize();
+							String source = message.getPingSource();
+							String target = message.getPingTarget();
+							long ping = message.getLatencyMs();
+							
+							ps = ConnectionFactory.prepare(sqlLatenciesInsertQuery);
+							ps.setInt(1, superstep);
+							ps.setString(2, source);
+							ps.setString(3,  target);
+							ps.setLong(4, ping);
 
-							sp = ConnectionFactory.prepare(sqlMsgsInsertIntoTempQuery.replace("%TABLE", table));
-							sp.setInt(1, superstep);
-							sp.setString(2, source);
-							sp.setString(3,  target);
-							sp.setInt(4, msgsNumber);
-							sp.setDouble(5,  bytesNumber);
+							ps.executeUpdate();
+							ps.close();
 
-							sp.executeUpdate();
-							sp.close();
-
+						}catch(MySQLIntegrityConstraintViolationException mlce) {
 						}catch(SQLException se){
 							throw new SQLException(se);
 						}finally{
-							ConnectionFactory.closeStatement(sp);
+							ConnectionFactory.closeStatement(ps);
 						}
 					}
+
+				}catch(FileNotFoundException fnfe) {
+//					System.out.println("File " + latenciesPath + " not found");
 				}
 
-				for (RecordedLatency message : latenciesBook.getRecordedLatencyList()) { 
-
-					try{
-						String source = message.getPingSource();
-						String target = message.getPingTarget();
-						long ping = message.getLatencyMs();
-
-						ps = ConnectionFactory.prepare(sqlLatenciesInsertQuery);
-						ps.setInt(1, superstep);
-						ps.setString(2, source);
-						ps.setString(3,  target);
-						ps.setLong(4, ping);
-
-						ps.executeUpdate();
-						ps.close();
-
-					}catch(SQLException se){
-						throw new SQLException(se);
-					}finally{
-						ConnectionFactory.closeStatement(ps);
-					}
-				}
-
-				msgsInput.close();
-				latenciesInput.close();
+				if(msgsInput != null)
+					msgsInput.close();	
+				if(latenciesInput != null)				
+					latenciesInput.close();
 
 				superstep++;
 
