@@ -107,8 +107,8 @@ public class WorkerDataReader/* implements Reader */{
 
 			int superstep = 0;
 
-			Path msgsFolderPath = new Path(folder + jobID + File.separator+ workerMessagesFolderPrefix + workerIndex);
-			Path latenciesFolderPath = new Path(folder + jobID + File.separator+ latenciesFolderPrefix + workerIndex);
+			Path msgsFolderPath = new Path(folder + jobID + File.separator + workerMessagesFolderPrefix + workerIndex);
+			Path latenciesFolderPath = new Path(folder + jobID + File.separator + latenciesFolderPrefix + workerIndex);
 
 			while(superstep < allSupersteps){
 

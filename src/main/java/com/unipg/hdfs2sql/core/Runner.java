@@ -24,6 +24,14 @@ public class Runner {
 
 		String folder = "";
 
+		if(args.length == 1 && args[0].equals("-h")) {
+			System.out.println("Please put as parameter the folder from which extract the data."
+					+ " If no parameter is given, a 'profiler' folder will be searched for in the "
+					+ "directory of the jar file.");
+			System.exit(0);
+			return;
+		}
+		
 		//		if(args[0]!= null/* && args[1]!= null*/){
 		if(args.length > 0)
 			folder = args[0];

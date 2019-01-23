@@ -48,16 +48,15 @@ public class DataExtractor {
 
 //		String hadoopConfFolder = System.getenv("HADOOP_CONF");
 		String hadoopConfFolder = "/opt/hadoop/etc/hadoop";
-		System.out.println(hadoopConfFolder);
 		
 		conf.addResource(new Path(hadoopConfFolder + File.separator +"core-site.xml"));
 		conf.addResource(new Path(hadoopConfFolder + File.separator +"hdfs-site.xml"));
 		try {
 			fileSystem = FileSystem.get(conf);
 		} catch (IOException e1) {
-			System.out.println("Please set HADOOP_CONF to the Hadoop configuration folder");
+			System.out.println("Can't find Hadoop configuration file " + hadoopConfFolder + File.separator +"core-site.xml");
+			e1.printStackTrace();			
 			System.exit(1);
-			e1.printStackTrace();
 		}
 	}
 
